@@ -1,7 +1,7 @@
-import { defineConfig } from 'vite'
-import tailwindcss from '@tailwindcss/vite'
+import { defineConfig } from "vite";
+import tailwindcss from "@tailwindcss/vite";
 
 export default defineConfig({
-  plugins: [tailwindcss()],
-  base: '/wesley-demo/',
-})
+	plugins: [tailwindcss()],
+	base: "/three-inflated-text/",
+});

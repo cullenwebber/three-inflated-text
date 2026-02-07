@@ -1,7 +1,6 @@
 import * as THREE from "three";
 import WebGLContext from "../core/WebGLContext";
 import ImportGltf from "../utils/ImportGltf";
-import { CameraRig } from "../utils/CameraRig";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 
 export default class Scene {
@@ -14,6 +13,8 @@ export default class Scene {
 		this.aspectRatio = 0;
 		this.scene = null;
 		this.envMap = null;
+		this.material = null;
+		this.mixer = null;
 		this.#init();
 	}
 
@@ -21,7 +22,6 @@ export default class Scene {
 		this.#setContext();
 		this.#setupScene();
 		this.#setupCamera();
-		this.#setupCameraRig();
 		this.#addLights();
 		await this.#addObjects();
 	}
@@ -36,40 +36,61 @@ export default class Scene {
 		const pmremGenerator = new THREE.PMREMGenerator(this.context.renderer);
 		this.envMap = pmremGenerator.fromScene(environment).texture;
 		this.scene.environment = this.envMap;
-		this.scene.environmentIntensity = 1.0;
-		// this.scene.background = new THREE.Color(0x000000);
+		this.scene.environmentIntensity = 0.4;
+		this.scene.background = new THREE.Color(0x000000);
 	}
 
 	#setupCamera() {
 		this.#calculateAspectRatio();
 		this.camera = new THREE.PerspectiveCamera(45, this.aspectRatio, 0.001, 100);
-		this.camera.position.z = 8;
-		this.camera.position.y = -0.5;
-	}
-
-	#setupCameraRig() {
-		this.cameraRig = new CameraRig(this.camera, {
-			target: new THREE.Vector3(0, 0, 0),
-			xLimit: [-0.25, 0.25],
-			yLimit: [-0.75, -0.25],
-			damping: 1.65,
-		});
+		this.camera.position.z = 9;
+		this.camera.position.y = -7.0;
+		this.camera.position.x = 7.0;
+		this.camera.lookAt(0, 0, 0);
 	}
 
 	#addLights() {}
 
 	async #addObjects() {
-		new ImportGltf(`${import.meta.env.BASE_URL}__.glb`, {
-			onLoad: (model) => {
-				this.mesh = model;
+		this.material = new THREE.MeshStandardMaterial({
+			metalness: 1.0,
+			roughness: 0.25,
+			color: 0xc0c0c0,
+			flatShading: false,
+		});
 
+		new ImportGltf(`${import.meta.env.BASE_URL}text.glb`, {
+			onLoad: (model, gltf) => {
+				this.mesh = model;
+				this.gltf = gltf;
 				this.mesh.traverse((children) => {
 					if (!children.isMesh) return;
-					children.material = material;
+					children.material = this.material;
 				});
 
 				this.scene.add(model);
+
+				this.mixer = new THREE.AnimationMixer(model);
+				this.mixer.timeScale = 0.65;
+				this.#setUpEventListener();
 			},
+		});
+	}
+
+	#setUpEventListener() {
+		const loopDelay = 50;
+
+		this.gltf.animations.forEach((clip) => {
+			const action = this.mixer.clipAction(clip);
+			action.loop = THREE.LoopPingPong;
+			action.play();
+		});
+
+		this.mixer.addEventListener("loop", (e) => {
+			e.action.paused = true;
+			setTimeout(() => {
+				e.action.paused = false;
+			}, loopDelay);
 		});
 	}
 
@@ -81,7 +102,7 @@ export default class Scene {
 	}
 
 	animate(delta, elapsed) {
-		this.cameraRig && this.cameraRig.update(delta);
+		this.mixer && this.mixer.update(delta);
 	}
 
 	onResize(width, height) {
